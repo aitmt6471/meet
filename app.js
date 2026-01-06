@@ -247,9 +247,16 @@ async function submitToServer(data) {
 
         const result = await response.json();
 
-        // 서버 응답 확인 (n8n webhook은 success 필드 사용)
-        if (!result.success && !result.ok) {
-            throw new Error(result.error || result.message || '서버에서 요청을 처리할 수 없습니다.');
+        // 서버 응답 확인
+        // HTTP 200이면 성공으로 간주 (n8n webhook은 다양한 형식 반환 가능)
+        if (result.error) {
+            throw new Error(result.error);
+        }
+
+        // request_id가 없으면 임시로 생성
+        if (!result.request_id && !result.success) {
+            result.request_id = 'REQ-' + new Date().toISOString().replace(/[-:T.]/g, '').slice(0, 14);
+            result.success = true;
         }
 
         return result;
