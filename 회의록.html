@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="AIT 회의록 자동생성 시스템">
+    <title>AIT 회의록 자동생성 시스템</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+    <!-- Container -->
+    <div class="container">
+        <!-- Header Card -->
+        <div class="header-card">
+            <img src="AIT로고.png" alt="AIT Logo" class="logo">
+            <h1>AIT 회의록 자동생성 시스템</h1>
+            <p>스마트 회의록 자동화 플랫폼</p>
+        </div>
+
+        <!-- Main Form -->
+        <div id="formWrapper">
+            <div id="errorMessage" class="message message-error"></div>
+
+            <form id="meetingForm">
+                <!-- 기본 정보 카드 -->
+                <div class="card">
+                    <div class="card-title">
+                        <span class="icon">📋</span>
+                        회의 기본 정보
+                    </div>
+
+                    <div class="form-group">
+                        <label>회의 일자 <span class="required">*</span></label>
+                        <input type="date" id="meetingDate" name="meeting_date" required max="9999-12-31">
+                    </div>
+
+                    <div class="form-group">
+                        <label>작성자 <span class="required">*</span></label>
+                        <input type="text" id="author" name="author" placeholder="이름을 입력하세요" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label>회의 제목 <span class="required">*</span></label>
+                        <input type="text" id="meetingTitle" name="meeting_title" placeholder="예: 스마트 공장 부품 품질 검토"
+                            required>
+                    </div>
+                </div>
+
+                <!-- 참석자 정보 카드 -->
+                <div class="card">
+                    <div class="card-title">
+                        <span class="icon">👥</span>
+                        참석자 정보
+                    </div>
+
+                    <div class="form-group">
+                        <label>참석자 <span class="optional">(선택)</span></label>
+                        <input type="text" id="attendees" name="attendees" placeholder="예: 김철수, 이영희, 박민수">
+                        <div class="helper-text">참석자 이름을 쉼표로 구분하여 입력하세요</div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>참석자 이메일 <span class="required">*</span></label>
+                        <textarea id="attendeeEmails" name="attendee_emails" placeholder="이메일 주소 입력&#10;(줄바꿈 또는 쉼표로 구분)"
+                            required rows="4"></textarea>
+                        <div class="helper-text">자동으로 회의록이 발송됩니다</div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>간략 내용 <span class="optional">(선택)</span></label>
+                        <textarea id="briefNote" name="brief_note" placeholder="회의 내용을 간단히 메모하세요" rows="3"></textarea>
+                    </div>
+                </div>
+
+                <!-- 음성 파일 카드 -->
+                <div class="card">
+                    <div class="card-title">
+                        <span class="icon">🎤</span>
+                        음성 파일 업로드
+                    </div>
+
+                    <label class="file-upload-card">
+                        <input type="file" id="audioFile" name="audio_file"
+                            accept=".m4a,.mp3,.wav,audio/mp4,audio/mpeg,audio/wav" required>
+                        <div class="upload-icon">☁️</div>
+                        <div class="upload-text">파일을 선택하거나 드래그하세요</div>
+                        <div class="upload-subtext">M4A, MP3, WAV 형식 · 최대 40MB</div>
+                        <div id="fileInfo" class="file-info"></div>
+                    </label>
+                </div>
+
+                <!-- 버튼 그룹 -->
+                <div class="button-group">
+                    <button type="button" class="btn-back" onclick="resetForm()">
+                        초기화
+                    </button>
+                    <button type="submit" class="btn-next" id="submitBtn">
+                        제출하기
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Success Screen -->
+        <div id="successScreen" class="success-screen">
+            <div class="success-icon">✓</div>
+            <h2>접수 완료!</h2>
+
+            <div class="request-id-box">
+                <label>접수 번호</label>
+                <div class="request-id" id="requestIdDisplay">-</div>
+            </div>
+
+            <div class="info-box">
+                <strong>📧 다음 단계 안내</strong>
+                <ul>
+                    <li>회의록이 자동으로 작성됩니다</li>
+                    <li>완료되면 참석자 이메일로 발송됩니다</li>
+                    <li>처리 시간은 회의 길이에 따라 다를 수 있습니다</li>
+                </ul>
+            </div>
+
+            <button class="btn-next" onclick="newSubmission()">
+                새 회의록 제출
+            </button>
+        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay">
+        <div class="loading-content">
+            <div class="spinner"></div>
+            <h3>처리 중...</h3>
+            <p id="loadingMessage">파일을 업로드하고 있습니다</p>
+        </div>
+    </div>
+
+    <script src="config.js"></script>
+    <script src="app.js"></script>
+</body>
+
+</html>
