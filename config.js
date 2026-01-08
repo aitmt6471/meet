@@ -7,7 +7,7 @@
 const CONFIG = {
     // Google Apps Script Web App URL
     // 예: "https://docs.google.com/spreadsheets/d/16uNqfsxleg8vX-_52fnk3KY4xNtDzhwgFuvAs9NwIwg/edit?gid=0#gid=0"
-    APPS_SCRIPT_WEBAPP_URL: "https://nonseptate-axel-rousingly.ngrok-free.dev/webhook-test/meeting-submit",
+    APPS_SCRIPT_WEBAPP_URL: "https://nonseptate-axel-rousingly.ngrok-free.dev/webhook/meeting-submit",
 
     // API 인증 키
     FRONTEND_CONFIG_API_KEY: "AIT_MEETING_SECRET_API_KEY",
