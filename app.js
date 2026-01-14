@@ -1,5 +1,5 @@
 /**
- * AIT 회의록 자동화 시스템 - JavaScript
+ * AIT 회의록 자동화 시스템 - JavaScript (수정됨)
  * 회의록 제출 폼의 모든 로직을 처리합니다
  */
 
@@ -116,19 +116,19 @@ function validateForm() {
 
     const invalidEmails = emails.filter(email => !isValidEmail(email));
     if (invalidEmails.length > 0) {
-        return `유효하지 않은 이메일 주소가 있습니다:\n${invalidEmails.join(', ')}`;
+        return `유효하지 않은 이메일 주소가 있습니다:\\n${invalidEmails.join(', ')}`;
     }
 
     // 파일 형식 검증
     const fileExtension = file.name.split('.').pop().toLowerCase();
     if (!CONFIG.ALLOWED_FILE_TYPES[fileExtension]) {
-        return `지원하지 않는 파일 형식입니다.\n지원 형식: M4A, MP3, WAV`;
+        return `지원하지 않는 파일 형식입니다.\\n지원 형식: M4A, MP3, WAV`;
     }
 
     // 파일 크기 검증
     const fileSizeMB = file.size / (1024 * 1024);
     if (fileSizeMB > CONFIG.MAX_FILE_SIZE_MB) {
-        return `파일 크기가 너무 큽니다.\n최대 크기: ${CONFIG.MAX_FILE_SIZE_MB}MB\n현재 크기: ${fileSizeMB.toFixed(2)}MB`;
+        return `파일 크기가 너무 큽니다.\\n최대 크기: ${CONFIG.MAX_FILE_SIZE_MB}MB\\n현재 크기: ${fileSizeMB.toFixed(2)}MB`;
     }
 
     return null; // 검증 통과
@@ -140,7 +140,7 @@ function validateForm() {
 function parseEmails(emailString) {
     // 줄바꿈, 쉼표, 세미콜론으로 분리
     const emails = emailString
-        .split(/[\n,;]+/)
+        .split(/[\\n,;]+/)
         .map(email => email.trim())
         .filter(email => email.length > 0);
 
@@ -152,7 +152,7 @@ function parseEmails(emailString) {
  * 이메일 형식 검증
  */
 function isValidEmail(email) {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const emailRegex = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/;
     return emailRegex.test(email);
 }
 
@@ -217,22 +217,11 @@ function fileToBase64(file) {
  * 서버에 데이터 전송
  */
 async function submitToServer(data) {
-    // 설정 확인
-    if (CONFIG.APPS_SCRIPT_WEBAPP_URL === 'YOUR_APPS_SCRIPT_WEBAPP_URL_HERE') {
-        throw new Error('시스템 설정이 완료되지 않았습니다.\nconfig.js 파일에서 APPS_SCRIPT_WEBAPP_URL을 설정해주세요.');
-    }
-
-    if (CONFIG.FRONTEND_CONFIG_API_KEY === 'YOUR_API_KEY_HERE') {
-        throw new Error('시스템 설정이 완료되지 않았습니다.\nconfig.js 파일에서 FRONTEND_CONFIG_API_KEY를 설정해주세요.');
-    }
-
     try {
         const response = await fetch(CONFIG.APPS_SCRIPT_WEBAPP_URL, {
             method: 'POST',
-            mode: 'cors',
             headers: {
-                'Content-Type': 'application/json',
-                'X-API-Key': CONFIG.FRONTEND_CONFIG_API_KEY
+                'Content-Type': 'application/json'
             },
             body: JSON.stringify(data)
         });
@@ -245,7 +234,6 @@ async function submitToServer(data) {
         const result = await response.json();
 
         // 서버 응답 확인
-        // HTTP 200이면 성공으로 간주 (n8n webhook은 다양한 형식 반환 가능)
         if (result.error) {
             throw new Error(result.error);
         }
@@ -261,7 +249,7 @@ async function submitToServer(data) {
     } catch (error) {
         // 네트워크 오류 처리
         if (error.name === 'TypeError' && error.message.includes('fetch')) {
-            throw new Error('네트워크 연결을 확인해주세요.\n서버에 접속할 수 없습니다.');
+            throw new Error('네트워크 연결을 확인해주세요.\\n서버에 접속할 수 없습니다.');
         }
 
         throw error;
