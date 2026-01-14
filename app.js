@@ -1,9 +1,129 @@
 /**
- * AIT 회의록 자동화 시스템 - JavaScript (수정됨)
+ * AIT 회의록 자동화 시스템 - JavaScript (Google Drive 통합)
  * 회의록 제출 폼의 모든 로직을 처리합니다
  */
 
-// DOM 요소
+// ===== Google Drive API 관련 =====
+let tokenClient;
+let accessToken = null;
+let gapiInited = false;
+let gisInited = false;
+
+/**
+ * Google API 초기화
+ */
+function initializeGoogleAPIs() {
+    gapi.load('client', initializeGapiClient);
+}
+
+async function initializeGapiClient() {
+    try {
+        await gapi.client.init({
+            apiKey: CONFIG.GOOGLE_API_KEY,
+            discoveryDocs: CONFIG.GOOGLE_DISCOVERY_DOCS,
+        });
+        gapiInited = true;
+        console.log('✅ GAPI 초기화 완료');
+        maybeEnableButtons();
+    } catch (error) {
+        console.error('GAPI 초기화 오류:', error);
+    }
+}
+
+function gisLoaded() {
+    tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: CONFIG.GOOGLE_CLIENT_ID,
+        scope: CONFIG.GOOGLE_SCOPES,
+        callback: '', // 나중에 설정
+    });
+    gisInited = true;
+    console.log('✅ GIS 초기화 완료');
+    maybeEnableButtons();
+}
+
+function maybeEnableButtons() {
+    if (gapiInited && gisInited) {
+        console.log('✅ Google API 준비 완료');
+    }
+}
+
+/**
+ * Google Drive 액세스 토큰 획득
+ */
+function getAccessToken() {
+    return new Promise((resolve, reject) => {
+        if (accessToken) {
+            resolve(accessToken);
+            return;
+        }
+
+        tokenClient.callback = (response) => {
+            if (response.error !== undefined) {
+                reject(response);
+                return;
+            }
+            accessToken = response.access_token;
+            resolve(accessToken);
+        };
+
+        if (gapi.client.getToken() === null) {
+            tokenClient.requestAccessToken({ prompt: 'consent' });
+        } else {
+            tokenClient.requestAccessToken({ prompt: '' });
+        }
+    });
+}
+
+/**
+ * Google Drive에 파일 업로드
+ */
+async function uploadToDrive(file) {
+    try {
+        console.log(`📤 Google Drive 업로드 시작: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)}MB)`);
+
+        // 액세스 토큰 획득
+        const token = await getAccessToken();
+
+        // 메타데이터
+        const metadata = {
+            name: file.name,
+            mimeType: file.type
+        };
+
+        // FormData로 multipart 업로드
+        const form = new FormData();
+        form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+        form.append('file', file);
+
+        const response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,size,webViewLink', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            },
+            body: form
+        });
+
+        if (!response.ok) {
+            const error = await response.text();
+            throw new Error(`Drive 업로드 실패: ${error}`);
+        }
+
+        const result = await response.json();
+        console.log('✅ Drive 업로드 성공:', result);
+
+        return {
+            fileId: result.id,
+            fileName: result.name,
+            fileSize: result.size,
+            webViewLink: result.webViewLink
+        };
+    } catch (error) {
+        console.error('❌ Drive 업로드 오류:', error);
+        throw new Error(`Google Drive 업로드 실패: ${error.message}`);
+    }
+}
+
+// ===== 기존 DOM 요소 =====
 const form = document.getElementById('meetingForm');
 const submitBtn = document.getElementById('submitBtn');
 const loadingOverlay = document.getElementById('loadingOverlay');
@@ -15,11 +135,25 @@ const fileInput = document.getElementById('audioFile');
 const fileInfo = document.getElementById('fileInfo');
 const meetingDateInput = document.getElementById('meetingDate');
 
-// 오늘 날짜를 기본값으로 설정
+// ===== 초기화 =====
 window.addEventListener('DOMContentLoaded', () => {
+    // 오늘 날짜 기본값 설정
     const today = new Date().toISOString().split('T')[0];
     meetingDateInput.value = today;
     meetingDateInput.max = today;
+
+    // Google API 초기화
+    if (CONFIG.GOOGLE_CLIENT_ID && CONFIG.GOOGLE_CLIENT_ID !== 'YOUR_CLIENT_ID.apps.googleusercontent.com') {
+        try {
+            initializeGoogleAPIs();
+            // GIS가 로드되면 자동 호출됨
+            window.gisLoaded = gisLoaded;
+        } catch (error) {
+            console.warn('Google API 초기화 실패 (선택사항):', error);
+        }
+    } else {
+        console.warn('⚠️ Google Client ID가 설정되지 않았습니다. 대용량 파일 업로드가 제한됩니다.');
+    }
 });
 
 // 파일 선택 시 정보 표시
@@ -27,10 +161,13 @@ fileInput.addEventListener('change', function (e) {
     const file = e.target.files[0];
     if (file) {
         const sizeMB = (file.size / (1024 * 1024)).toFixed(2);
+        const uploadMethod = sizeMB >= CONFIG.DRIVE_UPLOAD_THRESHOLD_MB ? '📂 Google Drive' : '📄 직접 전송';
+
         fileInfo.innerHTML = `
             <strong>선택된 파일:</strong> ${file.name}<br>
             <strong>크기:</strong> ${sizeMB} MB<br>
-            <strong>형식:</strong> ${file.type || '알 수 없음'}
+            <strong>형식:</strong> ${file.type || '알 수 없음'}<br>
+            <strong>전송 방식:</strong> ${uploadMethod}
         `;
         fileInfo.classList.add('show');
     } else {
@@ -56,82 +193,84 @@ form.addEventListener('submit', async function (e) {
     submitBtn.disabled = true;
 
     try {
-        // 로딩 시작
-        showLoading('파일을 변환하고 있습니다...');
+        // 파일 크기 확인
+        const file = fileInput.files[0];
+        const fileSizeMB = file.size / (1024 * 1024);
 
-        // 폼 데이터 수집
-        const formData = await collectFormData();
+        let formData;
 
-        // 서버에 전송
-        showLoading('서버에 전송 중입니다...');
-        const response = await submitToServer(formData);
+        // 파일 크기에 따라 처리 방식 결정
+        if (fileSizeMB >= CONFIG.DRIVE_UPLOAD_THRESHOLD_MB) {
+            // 대용량: Google Drive 업로드
+            showLoading('Google Drive에 파일을 업로드하는 중...');
+            const driveFile = await uploadToDrive(file);
+
+            showLoading('회의록 처리 요청 중...');
+            formData = await collectFormDataWithDrive(driveFile);
+        } else {
+            // 소용량: 기존 base64 방식
+            showLoading('파일을 변환하고 있습니다...');
+            formData = await collectFormData();
+        }
+
+        // 서버로 전송
+        showLoading('회의록을 처리하고 있습니다...');
+        await submitToServer(formData);
 
         // 성공 처리
         hideLoading();
-        showSuccess(response.request_id);
+        showSuccess(formData);
 
     } catch (error) {
+        console.error('제출 오류:', error);
         hideLoading();
+        showError(error.message || '제출 중 오류가 발생했습니다. 다시 시도해주세요.');
         submitBtn.disabled = false;
-        showError(error.message);
     }
 });
 
 /**
- * 폼 입력값 검증
+ * 폼 검증
  */
 function validateForm() {
     const meetingDate = document.getElementById('meetingDate').value.trim();
     const author = document.getElementById('author').value.trim();
     const meetingTitle = document.getElementById('meetingTitle').value.trim();
+    const attendees = document.getElementById('attendees').value.trim();
     const attendeeEmails = document.getElementById('attendeeEmails').value.trim();
     const file = fileInput.files[0];
 
-    // 필수 필드 체크
-    if (!meetingDate) {
-        return '회의 일자를 선택해주세요.';
-    }
+    if (!meetingDate) return '회의 일자를 선택해주세요.';
+    if (!author) return '작성자를 입력해주세요.';
+    if (!meetingTitle) return '회의 제목을 입력해주세요.';
+    if (!attendees) return '참석자를 입력해주세요.';
+    if (!attendeeEmails) return '참석자 이메일을 입력해주세요.';
 
-    if (!author) {
-        return '작성자를 입력해주세요.';
-    }
-
-    if (!meetingTitle) {
-        return '회의 제목을 입력해주세요.';
-    }
-
-    if (!attendeeEmails) {
-        return '참석자 이메일을 입력해주세요.';
-    }
-
-    if (!file) {
-        return '음성 파일을 선택해주세요.';
-    }
-
-    // 이메일 형식 검증
+    // 이메일 검증
     const emails = parseEmails(attendeeEmails);
-    if (emails.length === 0) {
-        return '유효한 이메일 주소를 입력해주세요.';
+    const invalidEmails = emails.filter(email => !isValidEmail(email));
+
+    if (invalidEmails.length > 0) {
+        return `유효하지 않은 이메일: ${invalidEmails.join(', ')}`;
     }
 
-    const invalidEmails = emails.filter(email => !isValidEmail(email));
-    if (invalidEmails.length > 0) {
-        return `유효하지 않은 이메일 주소가 있습니다:\\n${invalidEmails.join(', ')}`;
-    }
+    if (!file) return '음성 파일을 선택해주세요.';
 
     // 파일 형식 검증
-    const fileExtension = file.name.split('.').pop().toLowerCase();
-    if (!CONFIG.ALLOWED_FILE_TYPES[fileExtension]) {
-        return `지원하지 않는 파일 형식입니다.\\n지원 형식: M4A, MP3, WAV`;
+    const fileExt = file.name.split('.').pop().toLowerCase();
+    if (!CONFIG.ALLOWED_FILE_TYPES[fileExt]) {
+        return `지원되지 않는 파일 형식입니다. (지원: ${Object.keys(CONFIG.ALLOWED_FILE_TYPES).join(', ')})`;
     }
 
-    // 파일 크기 검증
+    // 파일 크기 검증 (최대 허용)
     const fileSizeMB = file.size / (1024 * 1024);
-    if (fileSizeMB > CONFIG.MAX_FILE_SIZE_MB) {
-        return `파일 크기가 너무 큽니다.\\n최대 크기: ${CONFIG.MAX_FILE_SIZE_MB}MB\\n현재 크기: ${fileSizeMB.toFixed(2)}MB`;
+    const maxSize = 100; // 100MB까지 허용 (Drive 사용 시)
+
+    if (fileSizeMB > maxSize) {
+        return `파일 크기가 너무 큽니다. (최대: ${maxSize}MB, 현재: ${fileSizeMB.toFixed(2)}MB)`;
     }
 
-    return null; // 검증 통과
+    return null;
 }
 
 /**
@@ -157,7 +296,38 @@ function isValidEmail(email) {
 }
 
 /**
- * 폼 데이터 수집 및 파일을 base64로 변환
+ * 폼 데이터 수집 (Google Drive 방식)
+ */
+async function collectFormDataWithDrive(driveFile) {
+    const meetingDate = document.getElementById('meetingDate').value.trim();
+    const author = document.getElementById('author').value.trim();
+    const meetingTitle = document.getElementById('meetingTitle').value.trim();
+    const attendees = document.getElementById('attendees').value.trim();
+    const attendeeEmails = document.getElementById('attendeeEmails').value.trim();
+    const briefNote = document.getElementById('briefNote').value.trim();
+
+    // 이메일 파싱
+    const emails = parseEmails(attendeeEmails);
+
+    return {
+        meeting_date: meetingDate,
+        author: author,
+        meeting_title: meetingTitle,
+        attendees: attendees,
+        attendee_emails: emails.join(', '),
+        brief_note: briefNote,
+
+        // Google Drive 정보
+        file_source: 'google_drive',
+        file_id: driveFile.fileId,
+        file_name: driveFile.fileName,
+        file_size: driveFile.fileSize,
+        file_type: fileInput.files[0].type
+    };
+}
+
+/**
+ * 폼 데이터 수집 및 파일을 base64로 변환 (기존 방식)
  */
 async function collectFormData() {
     const meetingDate = document.getElementById('meetingDate').value.trim();
@@ -174,47 +344,39 @@ async function collectFormData() {
     // 파일을 base64로 변환
     const base64File = await fileToBase64(file);
 
-    // 파일 정보
-    const fileExtension = file.name.split('.').pop().toLowerCase();
-    const mimeType = CONFIG.ALLOWED_FILE_TYPES[fileExtension] || file.type;
-
-    // n8n 웹훅 형식에 맞춤
     return {
         meeting_date: meetingDate,
         author: author,
         meeting_title: meetingTitle,
-        attendees: attendees || '',
-        attendee_emails: emails.join(', '),  // 쉼표+공백으로 구분
-        brief_note: briefNote || '',
+        attendees: attendees,
+        attendee_emails: emails.join(', '),
+        brief_note: briefNote,
+
+        // Base64 파일 정보
+        file_source: 'base64',
         file_name: file.name,
-        file_data: base64File,  // base64 직접 전달
-        file_type: mimeType
+        file_data: base64File,
+        file_type: file.type
     };
 }
 
 /**
- * 파일을 base64로 변환
+ * 파일을 Base64로 변환
  */
 function fileToBase64(file) {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
-
         reader.onload = () => {
-            // data:audio/mp3;base64,XXXXX 형식에서 base64 부분만 추출
             const base64 = reader.result.split(',')[1];
             resolve(base64);
         };
-
-        reader.onerror = () => {
-            reject(new Error('파일을 읽는 중 오류가 발생했습니다.'));
-        };
-
+        reader.onerror = error => reject(error);
         reader.readAsDataURL(file);
     });
 }
 
 /**
- * 서버에 데이터 전송
+ * 서버로 데이터 전송
  */
 async function submitToServer(data) {
     try {
@@ -226,32 +388,16 @@ async function submitToServer(data) {
             body: JSON.stringify(data)
         });
 
-        // 응답 확인
         if (!response.ok) {
-            throw new Error(`서버 오류: ${response.status} ${response.statusText}`);
+            const errorText = await response.text();
+            throw new Error(`서버 오류: ${response.status} - ${errorText}`);
         }
 
-        const result = await response.json();
-
-        // 서버 응답 확인
-        if (result.error) {
-            throw new Error(result.error);
-        }
-
-        // request_id가 없으면 임시로 생성
-        if (!result.request_id && !result.success) {
-            result.request_id = 'REQ-' + new Date().toISOString().replace(/[-:T.]/g, '').slice(0, 14);
-            result.success = true;
-        }
-
-        return result;
-
+        return await response.json().catch(() => ({}));
     } catch (error) {
-        // 네트워크 오류 처리
         if (error.name === 'TypeError' && error.message.includes('fetch')) {
-            throw new Error('네트워크 연결을 확인해주세요.\\n서버에 접속할 수 없습니다.');
+            throw new Error('서버에 연결할 수 없습니다. 네트워크 연결을 확인해주세요.');
         }
-
         throw error;
     }
 }
@@ -259,7 +405,7 @@ async function submitToServer(data) {
 /**
  * 로딩 표시
  */
-function showLoading(message) {
+function showLoading(message = '처리 중...') {
     loadingMessage.textContent = message;
     loadingOverlay.classList.add('show');
 }
@@ -277,9 +423,9 @@ function hideLoading() {
 function showError(message) {
     errorMessage.textContent = message;
     errorMessage.classList.add('show');
-
-    // 페이지 상단으로 스크롤
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    setTimeout(() => {
+        errorMessage.classList.remove('show');
+    }, 8000);
 }
 
 /**
@@ -292,51 +438,32 @@ function hideError() {
 /**
  * 성공 화면 표시
  */
-function showSuccess(requestId) {
-    // 폼 숨기기
+function showSuccess(data) {
     formWrapper.style.display = 'none';
-
-    // 접수 번호 표시
-    document.getElementById('requestIdDisplay').textContent = requestId || 'N/A';
-
-    // 성공 화면 표시
     successScreen.classList.add('show');
 
-    // 페이지 상단으로 스크롤
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    document.getElementById('successTitle').textContent = data.meeting_title;
+    document.getElementById('successDate').textContent = data.meeting_date;
+    document.getElementById('successAuthor').textContent = data.author;
+
+    const emailList = data.attendee_emails.split(',').map(email => email.trim());
+    document.getElementById('successEmails').textContent = emailList.join(', ');
 }
 
 /**
- * 새 제출을 위한 초기화
- */
-function newSubmission() {
-    // 성공 화면 숨기기
-    successScreen.classList.remove('show');
-
-    // 폼 표시 및 초기화
-    formWrapper.style.display = 'block';
-    resetForm();
-
-    // 페이지 상단으로 스크롤
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-}
-
-/**
- * 폼 초기화
+ * 새 제출을 위한 폼 리셋
  */
 function resetForm() {
+    successScreen.classList.remove('show');
+    formWrapper.style.display = 'block';
     form.reset();
+    fileInfo.classList.remove('show');
 
-    // 오늘 날짜로 재설정
     const today = new Date().toISOString().split('T')[0];
     meetingDateInput.value = today;
 
-    // 파일 정보 숨김
-    fileInfo.classList.remove('show');
-
-    // 에러 메시지 숨김
-    hideError();
-
-    // 제출 버튼 활성화
     submitBtn.disabled = false;
 }
+
+// 새 제출 버튼 이벤트
+document.getElementById('newSubmitBtn').addEventListener('click', resetForm);
