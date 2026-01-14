@@ -13,6 +13,10 @@ let gisInited = false;
  * Google API 초기화
  */
 function initializeGoogleAPIs() {
+    if (typeof gapi === 'undefined') {
+        console.warn('GAPI가 로드되지 않았습니다.');
+        return;
+    }
     gapi.load('client', initializeGapiClient);
 }
 
@@ -31,6 +35,10 @@ async function initializeGapiClient() {
 }
 
 function gisLoaded() {
+    if (typeof google === 'undefined' || !google.accounts) {
+        console.warn('GIS가 로드되지 않았습니다.');
+        return;
+    }
     tokenClient = google.accounts.oauth2.initTokenClient({
         client_id: CONFIG.GOOGLE_CLIENT_ID,
         scope: CONFIG.GOOGLE_SCOPES,
