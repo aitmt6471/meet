@@ -178,20 +178,17 @@ async function collectFormData() {
     const fileExtension = file.name.split('.').pop().toLowerCase();
     const mimeType = CONFIG.ALLOWED_FILE_TYPES[fileExtension] || file.type;
 
+    // n8n 웹훅 형식에 맞춤
     return {
-        action: 'submit',
-        apiKey: CONFIG.FRONTEND_CONFIG_API_KEY,
         meeting_date: meetingDate,
         author: author,
         meeting_title: meetingTitle,
         attendees: attendees || '',
-        attendee_emails: emails.join(','),
+        attendee_emails: emails.join(', '),  // 쉼표+공백으로 구분
         brief_note: briefNote || '',
-        file: {
-            filename: file.name,
-            mimeType: mimeType,
-            base64: base64File
-        }
+        file_name: file.name,
+        file_data: base64File,  // base64 직접 전달
+        file_type: mimeType
     };
 }
 
