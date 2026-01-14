@@ -28,8 +28,8 @@ const CONFIG = {
 
     // Google Drive API 설정
     // Google Cloud Console에서 발급받은 값으로 교체하세요
-    GOOGLE_CLIENT_ID: "YOUR_CLIENT_ID.apps.googleusercontent.com",
-    GOOGLE_API_KEY: "", // 선택사항
+    GOOGLE_CLIENT_ID: 549977198012-161jnnm4dpcrnfmorp2qen2197v84abc.apps.googleusercontent.com",
+    GOOGLE_API_KEY: "AIzaSyD3vTBGNx7XEv19JD28K4UnfXGu7wJav7A", // 선택사항
     GOOGLE_SCOPES: "https://www.googleapis.com/auth/drive.file",
     GOOGLE_DISCOVERY_DOCS: ["https://www.googleapis.com/discovery/v1/apis/drive/v3/rest"]
 };
