@@ -13,11 +13,11 @@ const CONFIG = {
     FRONTEND_CONFIG_API_KEY: "AIT_MEETING_SECRET_API_KEY",
 
     // 최대 파일 크기 (MB)
-    // base64 인코딩 후 약 20MB가 되어 ngrok 제한 내
-    MAX_FILE_SIZE_MB: 15,
+    // Google Drive를 통해 대용량 파일 처리 가능
+    MAX_FILE_SIZE_MB: 100,
 
     // 대용량 파일은 Google Drive로 처리 (MB)
-    DRIVE_UPLOAD_THRESHOLD_MB: 15,
+    DRIVE_UPLOAD_THRESHOLD_MB: 40,
 
     // 지원되는 파일 형식
     ALLOWED_FILE_TYPES: {
@@ -28,7 +28,7 @@ const CONFIG = {
 
     // Google Drive API 설정
     // Google Cloud Console에서 발급받은 값으로 교체하세요
-    GOOGLE_CLIENT_ID: 549977198012-161jnnm4dpcrnfmorp2qen2197v84abc.apps.googleusercontent.com",
+    GOOGLE_CLIENT_ID: "549977198012-161jnnm4dpcrnfmorp2qen2197v84abc.apps.googleusercontent.com",
     GOOGLE_API_KEY: "AIzaSyD3vTBGNx7XEv19JD28K4UnfXGu7wJav7A", // 선택사항
     GOOGLE_SCOPES: "https://www.googleapis.com/auth/drive.file",
     GOOGLE_DISCOVERY_DOCS: ["https://www.googleapis.com/discovery/v1/apis/drive/v3/rest"]
