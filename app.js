@@ -140,7 +140,7 @@ function validateForm() {
 function parseEmails(emailString) {
     // 줄바꿈, 쉼표, 세미콜론으로 분리
     const emails = emailString
-        .split(/[\\n,;]+/)
+        .split(/[\n,;]+/)
         .map(email => email.trim())
         .filter(email => email.length > 0);
 
@@ -152,7 +152,7 @@ function parseEmails(emailString) {
  * 이메일 형식 검증
  */
 function isValidEmail(email) {
-    const emailRegex = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/;
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return emailRegex.test(email);
 }
 
