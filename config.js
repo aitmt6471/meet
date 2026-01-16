@@ -17,6 +17,7 @@ const CONFIG = {
     MAX_FILE_SIZE_MB: 100,
 
     // 대용량 파일은 Google Drive로 처리 (MB)
+    // 40MB 이상 파일은 자동으로 Google Drive에 업로드됩니다
     DRIVE_UPLOAD_THRESHOLD_MB: 40,
 
     // 지원되는 파일 형식
